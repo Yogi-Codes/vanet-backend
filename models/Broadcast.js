@@ -7,15 +7,13 @@ const mongoose = require("mongoose");
 
 const BroadcastSchema = mongoose.Schema(
   {
-    _id: String, //message_id
-    text: String, //message_content
-    createdAt: String, //message_creation_time
-    user: {
-      _id: String, //sender_id
-      name: String, //sender_name
-      avatar: String //sender_photo
-    },
-    image: String //message_image_content
+    _id: String, 
+    text: String, 
+    createdAt: String,
+    userid:String,
+    username:String 
+
+ 
   },
   {
     strict: false //There may be some problems in type casting. So disable strict mode.

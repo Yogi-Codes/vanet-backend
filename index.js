@@ -289,18 +289,46 @@ app.get("/chats/:userId", (req, res) => {
 });
 
 //New Broadcast Messages API
-app.post("/broadcast", (req, res) => {
-  const broadcast = new Broadcast(req.body);
-
-  broadcast
-    .save()
-    .then(data => {
-      res.json(data);
-    })
-    .catch(error => {
-      res.json(error);
+app.post("/broadcast", async (req, res) => {
+  console.log(req.body);
+  try {
+    const messaged = new Chat({
+      sender: req.body.id,
+      receiver: "", // Corrected typo in "reciever" to "receiver"
+      text: "Broadcast : "+req.body.message
     });
+    Chat.updateMany(
+      {
+        _idd: { $ne: 0 } 
+      },
+      {
+        $push: {
+          messages: messaged
+        }
+      }
+    )
+      .then((result) => {
+        if (result.nModified === 0) {
+          return res.status(404).send({ error: 'No matching chats found' });
+        }
+        res.send({ message: 'Message broadcast successfully', result });
+      })
+      .catch((error) => {
+        console.error(error);
+        res.status(500).send({ error: 'Error broadcasting message' });
+      });
+    
+
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'Error broadcasting message', details: error.message });
+  }
 });
+
+
+
+
 
 //Broadcast Message getter API
 app.get("/broadcast", (req, res) => {
