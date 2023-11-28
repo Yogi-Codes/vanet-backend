@@ -2,7 +2,7 @@
 //libraies
 const express = require("express");
 const http = require("http");
-const socketIo = require("socket.io");
+
 const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
 const DOMPurify = require('isomorphic-dompurify');
@@ -22,7 +22,7 @@ require("dotenv/config");
 const port = 5000; //Default port
 const app = express(); //Define the express app
 const server = http.createServer(app); 
-const io = socketIo(server); 
+ 
 
 //Enabling JSON parser
 app.use(bodyParser.json());
@@ -373,63 +373,6 @@ app.get("/users/all", (req, res) => {
   });
 });
 
-/** Socket Declarations */
-
-var clients = []; //connected clients
-
-io.on("connection", socket => {
-  console.log("New User Connected");
-  socket.on("storeClientInfo", function(data) {
-    console.log(data.customId + " Connected");
-    //store the new client
-    var clientInfo = new Object();
-    clientInfo.customId = data.customId;
-    clientInfo.clientId = socket.id;
-    clients.push(clientInfo);
-
-    //update the active status
-    const res = User.updateOne({ id: data.customId }, { isActive: true });
-    res.exec().then(() => {
-      console.log("Activated " + data.customId);
-
-      //Notify others
-      socket.broadcast.emit("update", "Updated");
-      console.log("emmited");
-    });
-  });
-
-  socket.on("disconnect", function(data) {
-    for (var i = 0, len = clients.length; i < len; ++i) {
-      var c = clients[i];
-
-      if (c.clientId == socket.id) {
-        //remove the client
-        clients.splice(i, 1);
-        console.log(c.customId + " Disconnected");
-
-        //update the active status
-        const res = User.updateOne({ id: c.customId }, { isActive: false });
-        res.exec().then(data => {
-          console.log("Deactivated " + c.customId);
-
-          //notify others
-          socket.broadcast.emit("update", "Updated");
-        });
-        break;
-      }
-    }
-  });
-});
-
-//Messages Socket
-const chatSocket = io.of("/chatsocket");
-chatSocket.on("connection", function(socket) {
-  //On new message
-  socket.on("newMessage", data => {
-    //Notify the room
-    socket.broadcast.emit("incommingMessage", "reload");
-  });
-});
 
 //Let the server to listen
 server.listen(port, () => console.log(`Listening on port ${port}`));
