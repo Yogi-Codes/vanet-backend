@@ -7,8 +7,8 @@ const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
 const DOMPurify = require('isomorphic-dompurify');
 var Filter = require('bad-words'),
-    filter = new Filter();
-    const extractUrls = require("extract-urls");
+  filter = new Filter();
+const extractUrls = require("extract-urls");
 //DB Models
 const User = require("./models/User");
 const Chat = require("./models/Chat");
@@ -21,64 +21,91 @@ require("dotenv/config");
 //Initialize the server
 const port = 5000; //Default port
 const app = express(); //Define the express app
-const server = http.createServer(app); 
- 
+const server = http.createServer(app);
+
 
 //Enabling JSON parser
 app.use(bodyParser.json());
-app.use(function(req, res, next) {
+app.use(function (req, res, next) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Access-Control-Allow-Credentials', true);
   next();
 });
-
-//DB Connection
-mongoose.connect(
-  process.env.DB_CONNECTION,
-  { useNewUrlParser: true, useUnifiedTopology: true },
-  () => {
-    console.log("Connected to DB");
+const geoLocationSchema = new mongoose.Schema({
+  location: {
+      type: { type: String, default: "Point" },
+      title:{type:String,default:"null"},
+      coordinates: {
+          type: [Number],
+          index: '2dsphere'
+      }
   }
-);
+});
+const GeoLocation = mongoose.model('GeoLocation', geoLocationSchema);
+//DB Connection
+// mongoose.connect(
+//   process.env.DB_CONNECTION,
+//   { useNewUrlParser: true, useUnifiedTopology: true },
+//   (err) => {
+//     if (err) {
+//       console.error("Error connecting to DB:", err);
+//     } else {
+//       console.log("Connected to DB");
+//     }
+//   }
+// );
+mongoose
+  .connect(process.env.DB_CONNECTION)
+  .catch(error => console.log(error));
+
+  mongoose.connection.on('connected', function() {
+    GeoLocation.ensureIndexes(function(err) {
+        if (err) {
+            console.error('Error creating index:', err);
+        } else {
+            console.log('2dsphere index created successfully');
+        }
+    });
+});
+
 
 /**API Declaration */
 
 //User login API
 app.post("/login", async (req, res) => {
-  console.log(req.body);
-  const query =  User.find({ name: req.body.name,password:req.body.password });
-  query
-    .exec()
-    .then(data => {
-      if (data.length === 0) {
-        // const user = new User({
-        //   name: req.body.name,
-        //   password: req.body.password,
-        //   // photo: req.body.photo
-        // });
+  console.log(req.body); // Optional logging for debugging
 
-        res.status(404).json("User not Found");
- 
-      } else {
-        res.json(data[0]);
-      }
-    })
-    .catch(error => {
-      res.json(error);
-    });
+  try {
+    const user = await User.findOne({ name: req.body.name, password: req.body.password }); 
+    console.log(user);
+
+    if (!user) {
+      console.log("User not Found");
+      return res.status(404).json("User not Found"); // Early return after sending error response
+    }
+
+    console.log("User Found:", user); // Optional logging for success
+
+    res.status(200).json(user); // Send successful login response with user data
+  } catch (error) {
+    console.error("Login Error:", error); // Log the error for troubleshooting
+    res.status(500).json("Internal Server Error"); // Send generic error response for security
+  }
 });
 
+
 app.get("/", (req, res) => {
- res.status(200).json({
-  text:"hello world!"
- })
+  res.status(200).json({
+    text: "hello world!"
+  })
 });
 app.post("/saveLocation", async (req, res) => {
   const { id, lat, lng, title, content } = req.body;
 
   try {
+    console.log("save");
     // Try to find the location by ID
     let existingLocation = await Location.findOne({ id });
 
@@ -125,10 +152,10 @@ app.post('/mobLogout', async (req, res) => {
 
     // Retrieve location document
     const location = await Location.findOneAndDelete({ id: locationId });
-
+   console.log("loggedout");
     // Validate location existence
     console.log(location);
-    if (!location ||  location.length==0) {
+    if (!location || location.length == 0) {
       console.error('Location not found:', locationId);
       return res.status(404).json({ message: 'Location not found.' });
     }
@@ -158,12 +185,12 @@ app.post("/chats", (req, res) => {
   let urls = extractUrls(extractedText);
 
   const clean = DOMPurify.sanitize(extractedText);
-  
+
 
   req.body.messages[req.body.messages.length - 1].text = filter.clean(clean)
 
   console.log(urls);
-    
+
 
 
 
@@ -191,9 +218,8 @@ app.post("/chats", (req, res) => {
           .catch(error => {
             res.json(error);
           });
-      } 
-      else 
-      {
+      }
+      else {
         const updateChat = Chat.updateOne(
           {
             $or: [
@@ -295,11 +321,11 @@ app.post("/broadcast", async (req, res) => {
     const messaged = new Chat({
       sender: req.body.id,
       receiver: "", // Corrected typo in "reciever" to "receiver"
-      text: "Broadcast : "+req.body.message
+      text: "Broadcast : " + req.body.message
     });
     Chat.updateMany(
       {
-        _idd: { $ne: 0 } 
+        _idd: { $ne: 0 }
       },
       {
         $push: {
@@ -317,7 +343,7 @@ app.post("/broadcast", async (req, res) => {
         console.error(error);
         res.status(500).send({ error: 'Error broadcasting message' });
       });
-    
+
 
 
   } catch (error) {
@@ -367,11 +393,98 @@ app.get("/users/inactive", (req, res) => {
   });
 });
 app.get("/users/all", (req, res) => {
-  const users = User.find({ });
+  const users = User.find({});
   users.exec().then(data => {
     res.json(data);
   });
 });
+
+app.post("/GetRoute", async (req, res) => {
+  // Function to calculate the distance between two points using Haversine formula
+function getDistanceBetweenPoints(lat1, lon1, lat2, lon2) {
+  const earthRadius = 6371; // Earth's radius in kilometers
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+  const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distance = earthRadius * c; // Distance in kilometers
+  return distance * 1000; // Convert distance to meters
+}
+
+// Function to convert degrees to radians
+function deg2rad(deg) {
+  return deg * (Math.PI / 180);
+}
+
+let name ="";
+
+  try {
+    const locations = await Location.find({
+      "content": {
+          $regex: "Person",
+          $options: "i" // "i" option makes the search case-insensitive
+      }
+  });
+
+  
+      const { lat, lng } = req.body; // Extract latitude and longitude from request body
+       // Convert locations to geospatial points and save in a new collection (GeoLocation)
+       const geoPoints = locations.map(location => ({
+        type: "Point",
+        title:location.title,
+        coordinates: [parseFloat(location.lng), parseFloat(location.lat)]
+    }));
+
+    // Clear existing documents in GeoLocation collection
+    await GeoLocation.deleteMany({});
+
+    // Save the geospatial points in the GeoLocation collection
+    await GeoLocation.insertMany(geoPoints.map(geoPoint => ({ location: geoPoint })));
+
+      // Exclude the point specified in req.body from geoPoints array
+      const filteredGeoPoints = geoPoints.filter(location => {
+          return !(location.coordinates[0] === parseFloat(lng) && location.coordinates[1] === parseFloat(lat));
+      });
+
+      // Find all points within 300 meters of each other
+      const nearbyCounts = filteredGeoPoints.map(location => {
+          const nearbyLocations = filteredGeoPoints.filter(nearbyLocation => {
+              const distance = getDistanceBetweenPoints(location.coordinates[0], location.coordinates[1], nearbyLocation.coordinates[0], nearbyLocation.coordinates[1]);
+              return distance <= 300;
+          });
+          return {
+              location: location,
+              count: nearbyLocations.length
+          };
+      });
+
+      // Find the location with the maximum number of nearby points
+      let maxPoints = 0;
+      let destination = [0, 0];
+
+      for (const nearbyCount of nearbyCounts) {
+          if (nearbyCount.count > maxPoints) {
+              maxPoints = nearbyCount.count;
+              name=nearbyCount.location.title;
+            
+              destination = [nearbyCount.location.coordinates[1], nearbyCount.location.coordinates[0]]; // [latitude, longitude]
+          }
+      }
+console.log(name);
+      res.json({ destination,name });
+  } catch (error) {
+      console.error('Error:', error);
+      res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+
+
+
+
 
 
 //Let the server to listen

@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js",
-    "build":"npm i"
+    "build": "npm i"
   },
   "author": "",
   "license": "ISC",
@@ -19,7 +19,8 @@
     "extract-urls": "^1.4.0",
     "isomorphic-dompurify": "^1.9.0",
     "jsdom": "^22.1.0",
-    "mongoose": "^5.7.5",
+    "mongodb": "^6.6.0",
+    "mongoose": "^6.10.0",
     "nodemon": "^1.19.3"
   }
 }
